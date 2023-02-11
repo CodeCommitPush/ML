@@ -1,6 +1,9 @@
+#
+#  Stock price prediction  according to   https://www.youtube.com/watch?v=dKBKNOn3gCE
+#
+
 import pandas as pd
 import yfinance as yf
-#from yahoofinancials import YahooFinancials
 from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 import numpy as np
@@ -9,13 +12,105 @@ import matplotlib.pyplot as plt
 print("***!!! New run !!!***")
 
 tsla_df = yf.download('TSLA', start='2020-01-01', end='2023-02-02', progress=True)
-#print(tsla_df.info())
 
-print(tsla_df.head())
 
+print(tsla_df)
 
 # Get  close coulumn
-close_prices = tsla_df.iloc[:, 3:4].values
+df = pd.DataFrame(tsla_df.iloc[:, 3:4].values)
+df.columns = ['close']
+
+print(df.info())
+
+df["returns"] = df.close.pct_change()
+df["log_returns"] = np.log(1+ df["returns"])
+
+
+#plt.plot(df.log_returns)
+#plt.show()
+
+df.dropna(inplace=True)
+X = df[["close", "log_returns"]].values
+
+#print(X)
+
+scaler = MinMaxScaler(feature_range = (0, 1)).fit(X)
+X_scaled = scaler.transform(X)
+
+print(X_scaled[:5])
+
+y = [x[0] for x in X_scaled]
+
+#print(y[:5])
+
+split = int(len(X_scaled) * 0.8)
+X_train = X_scaled[:split]
+X_test = X_scaled[split : len(X_scaled)]
+
+y_train = y[:split]
+y_test = y[split : len(y)]
+
+assert len(X_train) == len(y_train)
+assert len(X_test) == len(y_test)
+
+n = 3
+
+Xtrain = []
+ytrain = []
+Xtest = []
+ytest = []
+
+for i in range(n, len(X_train)):
+    Xtrain.append(X_train[i-n : i, :X_train.shape[1]])
+    ytrain.append(y_train[i])
+
+for i in range(n, len(X_test)):
+    Xtest.append(X_test[i-n : i, :X_test.shape[1]])
+    ytest.append(y_train[i])
+
+
+Xtrain, ytrain = (np.array(Xtrain), np.array(ytrain))
+Xtrain = np.reshape(Xtrain, (Xtrain.shape[0], Xtrain.shape[1], Xtrain.shape[2]))
+
+
+Xtest, ytest = (np.array(Xtest), np.array(ytest))
+Xtest = np.reshape(Xtest, (Xtest.shape[0], Xtest.shape[1], Xtest.shape[2]))
+
+model = tf.keras.models.Sequential()
+model.add(tf.keras.layers.LSTM(4, input_shape = (Xtrain.shape[1], Xtrain.shape[2])))
+model.add(tf.keras.layers.Dense(1))
+model.compile(loss = "mean_squared_error", optimizer = "adam")
+model.fit(Xtrain, ytrain, epochs = 250 , validation_data = (Xtest, ytest), batch_size = 16, verbose = 1)
+
+
+print(model.summary())
+
+
+at = []
+at.append(X_test[len(X_test) - 4 : len(X_test)-1, :X_test.shape[1]])
+at = np.array(at)
+
+print(at)
+
+at = np.reshape(at, (at.shape[0], at.shape[1], at.shape[2]))
+
+a = model.predict(at)
+
+a = np.c_[a, np.zeros(a.shape)]
+
+a = scaler.inverse_transform(a)
+
+print(at)
+print(a)
+a = [x[0] for x in a]
+
+print("************************************************************")
+print("AAAA")
+print(at)
+print("BBB")
+print(a)
+exit()
+
 #print(close_prices)
 stock_data_len = close_prices.size
 
